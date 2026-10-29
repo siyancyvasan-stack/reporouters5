@@ -4,6 +4,8 @@ import { useAuth } from '../../context/AuthContext';
 import { Contact, loadContacts, loadWhatsappDestination, whatsappUrl } from '../../services/contactApi';
 import { ApiError } from '../../services/apiClient';
 
+const DEFAULT_SUPPORT_WHATSAPP_NUMBER = '94729790397';
+
 const roleLabel = (role: Contact['role']) =>
   role === 'AGENT' ? 'Sales Person' : role === 'MANAGER' ? 'Manager' : 'Factory Manager';
 
@@ -59,8 +61,9 @@ export const FloatingWhatsAppContact: React.FC<{ aboveMobileNav?: boolean }> = (
     if (destinationRequestRef.current) return destinationRequestRef.current;
     const request = loadWhatsappDestination()
       .then(({ whatsappNumber }) => {
-        setSalesWhatsappNumber(whatsappNumber);
-        return whatsappNumber;
+        const destination = whatsappNumber || DEFAULT_SUPPORT_WHATSAPP_NUMBER;
+        setSalesWhatsappNumber(destination);
+        return destination;
       })
       .catch((caught) => {
         setError(caught instanceof ApiError && caught.status === 429

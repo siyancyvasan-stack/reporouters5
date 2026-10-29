@@ -6,12 +6,6 @@ import './index.css';
 // Registration is deliberately production-only so local development never
 // serves stale bundles. API requests are excluded by the service worker.
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return;
-    refreshing = true;
-    window.location.reload();
-  });
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => registration.update())

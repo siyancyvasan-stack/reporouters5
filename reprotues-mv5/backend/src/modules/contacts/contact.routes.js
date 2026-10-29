@@ -9,6 +9,7 @@ import { getPresentUsers } from '../tracking/presence.service.js';
 import { randomUUID } from 'node:crypto';
 
 export const contactRouter = Router();
+const DEFAULT_SUPPORT_WHATSAPP_NUMBER = '94729790397';
 contactRouter.use(authenticate);
 contactRouter.use(distributedRateLimit('contacts', {
     windowMs: 60_000,
@@ -34,7 +35,7 @@ const serialize = (user, presentUsers) => ({
 contactRouter.get('/whatsapp-destination', authorize(Role.AGENT), async (req, res) => {
     const [settingsRows] = await db.query('SELECT supportWhatsappNumber FROM TenantSettings WHERE tenantId = ?', [req.auth.tenantId]);
     res.setHeader('Cache-Control', 'private, no-store');
-    res.json({ whatsappNumber: settingsRows[0]?.supportWhatsappNumber ?? null });
+    res.json({ whatsappNumber: settingsRows[0]?.supportWhatsappNumber || DEFAULT_SUPPORT_WHATSAPP_NUMBER });
 });
 
 contactRouter.get('/', async (req, res) => {

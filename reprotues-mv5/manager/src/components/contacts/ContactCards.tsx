@@ -4,12 +4,14 @@ import { ProfileAvatar } from '../common/ProfileAvatar';
 import { Contact, callUrl, whatsappUrl } from '../../services/contactApi';
 import { useAuth } from '../../context/AuthContext';
 
+const DEFAULT_SUPPORT_WHATSAPP_NUMBER = '94729790397';
+
 const roleLabel = (role: Contact['role']) => role === 'AGENT' ? 'Sales Person' : role === 'MANAGER' ? 'Manager' : 'Factory Manager';
 
 export const ContactCards: React.FC<{ contacts: Contact[]; emptyMessage?: string; dark?: boolean }> = ({ contacts, emptyMessage = 'No contacts have been assigned. Please contact administration.', dark = false }) => {
   const { user } = useAuth();
   const [copied, setCopied] = React.useState<string>();
-  if (!contacts.length) return <div className={`rounded-2xl border p-8 text-center ${dark ? 'border-slate-800 bg-slate-900/60 text-slate-400' : 'border-slate-200 bg-white text-slate-500'}`}><UserRoundX className="mx-auto mb-3 h-9 w-9"/><p className="text-sm font-semibold">{emptyMessage}</p></div>;
+  if (!contacts.length) return <div className={`rounded-2xl border p-8 text-center ${dark ? 'border-slate-800 bg-slate-900/60 text-slate-400' : 'border-slate-200 bg-white text-slate-500'}`}><UserRoundX className="mx-auto mb-3 h-9 w-9"/><p className="text-sm font-semibold">{emptyMessage}</p><a href={whatsappUrl(DEFAULT_SUPPORT_WHATSAPP_NUMBER, user?.name ?? 'Reproutes user')} target="_blank" rel="noopener noreferrer" className="mx-auto mt-5 flex min-h-12 max-w-xs items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 text-sm font-extrabold text-white hover:bg-emerald-500"><MessageCircle className="h-5 w-5"/>Message on WhatsApp</a></div>;
   return <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{contacts.map((contact) => {
     const phone = contact.phone || contact.whatsappNumber;
     return <article key={`${contact.assignmentType}-${contact.id}`} className={`rounded-3xl border p-5 shadow-sm ${dark ? 'border-slate-800 bg-slate-900/70 text-white' : 'border-slate-200 bg-white text-slate-900'}`}>
