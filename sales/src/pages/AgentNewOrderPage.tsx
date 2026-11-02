@@ -65,7 +65,14 @@ export const AgentNewOrderPage: React.FC = () => {
     setQuantities((prev) => {
       const current = prev[productId] || 0;
       const product = products.find((item) => item.id === productId);
-      const updated = Math.min(product?.stockCases ?? 0, Math.max(0, current + delta));
+      // A zero/omitted stock value is used by older product records to mean
+      // "not configured", not "the salesperson cannot add an order". Keep
+      // the cart usable and let the backend/factory workflow handle stock.
+      const configuredStock = Number(product?.stockCases);
+      const maxCases = Number.isFinite(configuredStock) && configuredStock > 0
+        ? configuredStock
+        : 9999;
+      const updated = Math.min(maxCases, Math.max(0, current + delta));
       return { ...prev, [productId]: updated };
     });
   };

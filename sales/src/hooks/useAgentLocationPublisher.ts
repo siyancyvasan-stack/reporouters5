@@ -213,6 +213,14 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
     setState('requesting-permission');
     window.addEventListener('online', handleOnline);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Start collecting GPS immediately after punch-in. Do not wait for the
+    // network/socket: points are persisted in the local queue while both
+    // mobile data and Wi-Fi are unavailable, then flushed when connectivity
+    // returns.
+    activeImmediateUploader = uploadPoint;
+    startPositionWatcher();
+
     void ensureAccessToken().then(() => {
       if (disposed) return;
       const socket = io(socketUrl, { transports: ['websocket', 'polling'], withCredentials: true,
@@ -222,14 +230,12 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
         reconnectionDelayMax: 30_000,
       });
       socketRef.current = socket;
-      activeImmediateUploader = uploadPoint;
       socket.on('connect', () => {
         if (disposed) return;
         setState('connected');
         if (hasConnected) trackingLog('socket-reconnect', { agentId, socketId: socket.id });
         hasConnected = true;
         void flushQueue().catch(() => setState('reconnecting'));
-        startPositionWatcher();
       });
       socket.on('disconnect', (reason) => {
         if (!disposed) setState(navigator.onLine ? 'reconnecting' : 'offline');
@@ -247,7 +253,6 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
           refreshingSocketToken = false;
         });
       });
-      startPositionWatcher();
     }).catch(() => setState('offline'));
 
     return () => {
