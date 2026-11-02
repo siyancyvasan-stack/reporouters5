@@ -71,8 +71,11 @@ const toMessages = (payload: unknown): TelemetryMessage[] => {
 export const useLiveAgentTracking = (initialAgents: Agent[]) => {
   const [agents, setAgents] = useState(() => refreshTrackingStatuses(initialAgents));
   const socketUrl = (import.meta.env.VITE_TRACKING_WS_URL as string | undefined)?.trim();
+  // Same-origin is the production topology. Do not fall back to demo mode
+  // merely because the frontend was built without a tracking env var.
   const configuredSocketIoUrl =
-    (import.meta.env.VITE_TRACKING_SOCKET_URL as string | undefined)?.trim();
+    ((import.meta.env.VITE_TRACKING_SOCKET_URL as string | undefined)?.trim() ||
+      (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'same-origin');
   const socketIoUrl =
     configuredSocketIoUrl === 'same-origin' ? undefined : configuredSocketIoUrl;
   const [connectionState, setConnectionState] = useState<TrackingConnectionState>(
@@ -109,6 +112,19 @@ export const useLiveAgentTracking = (initialAgents: Agent[]) => {
       .catch(() => undefined);
   }, [configuredSocketIoUrl, initialAgents]);
 
+  // Polling is only a fallback for proxies that block Socket.IO. Keep it at
+  // one second so a newly uploaded GPS point appears almost immediately even
+  // when the websocket transport is unavailable.
+  useEffect(() => {
+    if (!configuredSocketIoUrl || initialAgents.length === 0) return;
+    const timer = window.setInterval(() => {
+      void apiRequest<{ agents: TelemetryMessage[] }>('/api/v1/tracking/latest')
+        .then((payload) => setAgents((current) => mergeTelemetry(current, payload.agents, new Date().toISOString())))
+        .catch(() => undefined);
+    }, 1_000);
+    return () => window.clearInterval(timer);
+  }, [configuredSocketIoUrl, initialAgents.length]);
+
   useEffect(() => {
     if (!configuredSocketIoUrl) return;
     let disposed = false;
@@ -131,7 +147,7 @@ export const useLiveAgentTracking = (initialAgents: Agent[]) => {
     void ensureAccessToken()
       .then(() => {
         if (disposed) return;
-        socket = io(socketIoUrl, { transports: ['websocket'], withCredentials: true,
+        socket = io(socketIoUrl, { transports: ['websocket', 'polling'], withCredentials: true,
           auth: (callback) => callback({ token: getAccessToken() ?? undefined }),
           reconnection: true,
           reconnectionDelayMax: 30_000,
@@ -252,7 +268,10 @@ const mergeTelemetry = (
                 lat <= 90 &&
                 lng >= -180 &&
                 lng <= 180;
-              const incomingTimestamp = telemetry.deviceTimestamp ?? telemetry.lastUpdatedAt ?? telemetry.timestamp;
+              // Punch-in and the profile snapshot can contain coordinates with
+              // only lastLocationAt/serverReceivedAt. Treat those as valid
+              // location timestamps; otherwise the map silently keeps NaN.
+              const incomingTimestamp = telemetry.deviceTimestamp ?? telemetry.lastUpdatedAt ?? telemetry.timestamp ?? telemetry.lastLocationAt ?? telemetry.serverReceivedAt;
               const timestamp = incomingTimestamp ?? agent.deviceRecordedAt ?? agent.lastUpdatedAt;
               const isNewerLocation = Boolean(incomingTimestamp) && (
                 !agent.deviceRecordedAt || new Date(incomingTimestamp!).getTime() > new Date(agent.deviceRecordedAt).getTime()
@@ -279,7 +298,9 @@ const mergeTelemetry = (
 
               const merged: Agent = {
                 ...agent,
-                ...(hasCoordinates && isNewerLocation ? { coordinates: { lat, lng } } : {}),
+                ...(hasCoordinates && (isNewerLocation || !isValidAgentCoordinate(agent.coordinates))
+                  ? { coordinates: { lat, lng } }
+                  : {}),
                 ...(telemetry.heading !== undefined ? { heading: telemetry.heading } : {}),
                 ...(telemetry.altitude !== undefined ? { altitude: telemetry.altitude } : {}),
                 ...(telemetry.accuracy !== undefined || telemetry.gpsAccuracyMeters !== undefined
@@ -325,3 +346,8 @@ const mergeTelemetry = (
               };
               return withDerivedTrackingStatus(merged);
             });
+
+const isValidAgentCoordinate = (coordinates?: { lat?: number; lng?: number }) =>
+  Boolean(coordinates && isFiniteCoordinate(coordinates.lat) && isFiniteCoordinate(coordinates.lng) &&
+    coordinates.lat >= -90 && coordinates.lat <= 90 && coordinates.lng >= -180 && coordinates.lng <= 180 &&
+    !(coordinates.lat === 0 && coordinates.lng === 0));

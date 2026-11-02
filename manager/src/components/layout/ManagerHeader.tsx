@@ -47,14 +47,16 @@ export const ManagerHeader: React.FC<ManagerHeaderProps> = ({ onToggleMobileSide
       if (disposed) return;
       const configured = (import.meta.env.VITE_TRACKING_SOCKET_URL as string | undefined)?.trim();
       socket = io(configured && configured !== 'same-origin' ? configured : undefined, {
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         withCredentials: true,
         auth: { token },
       });
-      socket.on('notification:created', () => {
+      const refreshRetailers = () => {
         loadNotifications();
         window.dispatchEvent(new Event('reproutes:notifications-changed'));
-      });
+      };
+      socket.on('notification:created', refreshRetailers);
+      socket.on('sales:new-retailer', refreshRetailers);
     }).catch(() => undefined);
     return () => {
       disposed = true;

@@ -6,7 +6,7 @@ import { GlassCard } from "../components/common/GlassCard";
 import { useToast } from "../context/ToastContext";
 import { Store, Phone, MapPin, CheckCircle2, Navigation, X, LocateFixed, Camera } from "lucide-react";
 import { loadShops } from "../services/domainApi";
-import { capturePreciseGpsPoint } from "../services/deviceGps";
+import { captureFastGpsPoint, capturePreciseGpsPoint } from "../services/deviceGps";
 import { ApiError, apiRequest } from "../services/apiClient";
 import { useAuth } from "../context/AuthContext";
 import { ExportButton } from "../components/common/ExportButton";
@@ -414,7 +414,10 @@ const ShopRegistrationDrawer = ({
     if (!userId) return;
     setLocating(true);
     try {
-      const p = await capturePreciseGpsPoint(userId);
+      // Registration should not wait 20 seconds for survey-grade accuracy.
+      // An accurate-enough fix is still validated by the backend and can be
+      // refined by the next live GPS update.
+      const p = await captureFastGpsPoint(userId);
       setForm((f) => ({
         ...f,
         latitude: String(p.latitude),

@@ -2,6 +2,9 @@
   "name": "reproutes-api",
   "version": "4.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "type": "module",
   "scripts": {
     "dev": "node --watch-path=src src/server.js",
@@ -9,6 +12,7 @@
     "start": "node src/server.js",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --config vitest.config.ts",
+    "create:manager": "node scripts/create-reproutes-manager.cjs",
     "migrate:shops": "node scripts/migrate-shop-registration.js"
   },
   "dependencies": {

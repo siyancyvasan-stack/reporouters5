@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Socket, io } from 'socket.io-client';
-import { ensureAccessToken, getAccessToken, refreshSessionAccessToken } from '../services/apiClient';
+import { apiRequest, ensureAccessToken, getAccessToken, refreshSessionAccessToken } from '../services/apiClient';
 import { GPS_TIMEOUT_MS, MAXIMUM_GPS_ACCURACY_METERS } from '../services/deviceGps';
 import { createSingleGpsWatcher, type SingleGpsWatcher } from '../services/gpsWatcher';
 import {
@@ -46,8 +46,12 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
   const [state, setState] = useState<LocationPublisherState>('tracking-stopped');
   const [accuracyMeters, setAccuracyMeters] = useState<number>();
   const socketRef = useRef<Socket>();
+  // Same-origin is the production topology. A missing build-time env var
+  // must not silently disable live tracking after punch-in.
   const configuredSocketUrl = import.meta.env.VITE_TRACKING_SOCKET_URL?.trim();
-  const socketUrl = configuredSocketUrl === 'same-origin' ? undefined : configuredSocketUrl;
+  const socketUrl = configuredSocketUrl && configuredSocketUrl !== 'same-origin'
+    ? configuredSocketUrl
+    : ((import.meta.env.VITE_API_URL as string | undefined)?.trim() || undefined);
 
   useEffect(() => {
     let disposed = false;
@@ -89,7 +93,18 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
       await enqueueGpsPoint(point);
       const socket = socketRef.current;
       if (!socket?.connected) {
-        setState(navigator.onLine ? 'reconnecting' : 'offline');
+        // Keep tracking functional when a reverse proxy blocks Socket.IO.
+        // The manager also polls the same snapshot as a safety net.
+        try {
+          await apiRequest('/api/v1/tracking/points/batch', {
+            method: 'POST',
+            body: JSON.stringify({ points: [point] }),
+          });
+          await removeQueuedGpsPoints([point.clientPointId]);
+          if (!disposed) setState('tracking-active');
+        } catch {
+          if (!disposed) setState(navigator.onLine ? 'reconnecting' : 'offline');
+        }
         return;
       }
       await flushQueue();
@@ -181,7 +196,7 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
       stop();
       return;
     }
-    if (!configuredSocketUrl || !('geolocation' in navigator)) {
+    if (!('geolocation' in navigator)) {
       setState('gps-unavailable');
       return stop;
     }
@@ -200,7 +215,7 @@ export const useAgentLocationPublisher = (enabled: boolean, agentId?: string) =>
     document.addEventListener('visibilitychange', handleVisibilityChange);
     void ensureAccessToken().then(() => {
       if (disposed) return;
-      const socket = io(socketUrl, { transports: ['websocket'], withCredentials: true,
+      const socket = io(socketUrl, { transports: ['websocket', 'polling'], withCredentials: true,
         auth: (callback) => callback({ token: getAccessToken() ?? undefined }),
         reconnection: true,
         reconnectionDelay: 1_000,

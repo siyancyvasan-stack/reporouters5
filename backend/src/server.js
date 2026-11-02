@@ -12,7 +12,9 @@ const app = createApp();
 const server = http.createServer(app);
 const io = new Server(server, {
     cors: { origin: env.CORS_ORIGINS, credentials: true },
-    transports: ['websocket'],
+    // Allow polling fallback when the production reverse proxy does not
+    // forward WebSocket upgrades. Live tracking must still work in that case.
+    transports: ['websocket', 'polling'],
     pingInterval: 20_000,
     pingTimeout: 20_000,
     connectionStateRecovery: { maxDisconnectionDuration: 120_000, skipMiddlewares: false },

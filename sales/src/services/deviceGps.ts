@@ -61,8 +61,8 @@ export const requestBestPosition = (timeout = GPS_TIMEOUT_MS) => new Promise<Geo
   }, timeout);
 });
 
-export const capturePreciseGpsPoint = async (agentId: string): Promise<QueuedGpsPoint> => {
-  const best = await requestBestPosition();
+export const capturePreciseGpsPoint = async (agentId: string, timeout = GPS_TIMEOUT_MS): Promise<QueuedGpsPoint> => {
+  const best = await requestBestPosition(timeout);
   const capturedAt = new Date(best.timestamp).toISOString();
   return {
     clientPointId: crypto.randomUUID(),
@@ -76,5 +76,31 @@ export const capturePreciseGpsPoint = async (agentId: string): Promise<QueuedGps
     battery: await getBatteryLevel(),
     capturedAt,
     deviceTimestamp: capturedAt,
+  };
+};
+
+// Registration only needs the phone's current usable position. Prefer the
+// browser's cached fix so the button responds immediately instead of waiting
+// for a fresh high-accuracy GPS lock.
+export const captureFastGpsPoint = async (agentId: string): Promise<QueuedGpsPoint> => {
+  if (!('geolocation' in navigator)) {
+    throw new GpsError('UNAVAILABLE', 'Unable to determine your current location.');
+  }
+  const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      maximumAge: 30_000,
+      timeout: 2_000,
+    });
+  }).catch(() => requestBestPosition(3_000));
+  const { coords } = position;
+  const capturedAt = new Date(position.timestamp).toISOString();
+  return {
+    clientPointId: crypto.randomUUID(), agentId,
+    latitude: coords.latitude, longitude: coords.longitude, accuracy: coords.accuracy,
+    speedKmH: coords.speed == null ? undefined : Math.max(0, Math.min(300, coords.speed * 3.6)),
+    heading: coords.heading == null ? undefined : Math.max(0, Math.min(360, coords.heading)),
+    altitude: coords.altitude == null ? undefined : Math.max(-500, Math.min(10_000, coords.altitude)),
+    capturedAt, deviceTimestamp: capturedAt,
   };
 };

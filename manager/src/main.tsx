@@ -3,9 +3,21 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
-// Registration is deliberately production-only so local development never
-// serves stale bundles. API requests are excluded by the service worker.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// Registration is deliberately production-only. Also remove a service worker
+// left behind by an older production build when running the Vite dev server;
+// otherwise it can intercept API requests and return stale/500 responses.
+if (!import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    void navigator.serviceWorker.getRegistrations().then((registrations) =>
+      Promise.all(registrations.map((registration) => registration.unregister()))
+    );
+    if ('caches' in window) {
+      void window.caches.keys().then((keys) =>
+        Promise.all(keys.map((key) => window.caches.delete(key)))
+      );
+    }
+  });
+} else if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     void navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then((registration) => registration.update())
