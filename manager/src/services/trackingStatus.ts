@@ -6,8 +6,8 @@ const ageOf = (timestamp?: string, now = Date.now()) => {
   return Number.isFinite(value) ? Math.max(0, now - value) : Number.POSITIVE_INFINITY;
 };
 
-export const derivePresenceStatus = (agent: Pick<Agent, 'lastHeartbeatAt'>, now = Date.now()): PresenceStatus =>
-  ageOf(agent.lastHeartbeatAt, now) <= 90_000 ? 'ONLINE' : 'OFFLINE';
+export const derivePresenceStatus = (agent: Pick<Agent, 'lastHeartbeatAt' | 'socketConnected'>, now = Date.now()): PresenceStatus =>
+  agent.socketConnected === false ? 'OFFLINE' : ageOf(agent.lastHeartbeatAt, now) <= 30_000 ? 'ONLINE' : 'OFFLINE';
 
 export const deriveShiftStatus = (agent: Pick<Agent, 'shiftActive' | 'status'>): ShiftStatus =>
   !agent.shiftActive ? 'OFF_SHIFT' : agent.status === 'On Break' ? 'ON_BREAK' : 'WORKING';
