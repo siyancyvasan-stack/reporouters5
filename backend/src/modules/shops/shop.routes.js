@@ -224,17 +224,23 @@ shopRouter.post('/', authorize(Role.ADMIN, Role.MANAGER, Role.AGENT), async (req
         country: input.country, territory: input.territory ?? null, shopCategory: input.shopCategory ?? null, retailerType: input.retailerType ?? null,
         gpsAccuracy: input.gpsAccuracy ?? null, gpsCapturedAt: input.gpsCapturedAt ? new Date(input.gpsCapturedAt) : null, productCategories: JSON.stringify(input.productCategories),
         expectedMonthlyPurchase: input.expectedMonthlyPurchase, currentSupplier: input.currentSupplier ?? null, deliveryPreference: input.deliveryPreference ?? null, preferredVisitDays: JSON.stringify(input.preferredVisitDays),
-        shopRequirements: input.shopRequirements ?? null, salesNotes: input.salesNotes ?? null, createdAt: new Date(), updatedAt: new Date()
+        shopRequirements: input.shopRequirements ?? null, salesNotes: input.salesNotes ?? null, retailerCode: null, createdAt: new Date(), updatedAt: new Date()
     };
     
     const keys = Object.keys(shopData);
     const placeholders = keys.map(() => '?').join(',');
-    const values = keys.map(k => shopData[k]);
     
     const connection = await db.getConnection();
     let shop;
     try {
         await connection.beginTransaction();
+        const [latestCodes] = await connection.query(
+            'SELECT retailerCode FROM Shop WHERE tenantId = ? AND retailerCode REGEXP ? ORDER BY CAST(retailerCode AS UNSIGNED) DESC LIMIT 1 FOR UPDATE',
+            [req.auth.tenantId, '^[0-9]+$'],
+        );
+        const nextShopNumber = Number(latestCodes[0]?.retailerCode || 0) + 1;
+        shopData.retailerCode = String(nextShopNumber).padStart(10, '0');
+        const values = keys.map(k => shopData[k]);
         await connection.query(`INSERT INTO Shop (${keys.join(',')}) VALUES (${placeholders})`, values);
         const [createdShops] = await connection.query('SELECT * FROM Shop WHERE id = ?', [shopId]);
         shop = createdShops[0];
@@ -640,7 +646,7 @@ shopRouter.patch('/:id/review', authorize(Role.ADMIN, Role.MANAGER), async (req,
             await connection.query(`SELECT pg_advisory_xact_lock(hashtext('retailer-code:${req.auth.tenantId}'))`).catch(() => {}); // Optional fallback
             const [latest] = await connection.query('SELECT retailerCode FROM Shop WHERE tenantId = ? AND retailerCode IS NOT NULL ORDER BY retailerCode DESC LIMIT 1', [req.auth.tenantId]);
             const next = Number(latest[0]?.retailerCode?.split('-').pop() || 0) + 1;
-            retailerCode = `FIO-RET-${String(next).padStart(6, '0')}`;
+            retailerCode = `FIO-RET-${String(next).padStart(10, '0')}`;
         } 
         const status = input.action === 'APPROVE' ? RetailerStatus.APPROVED : input.action === 'REJECT' ? RetailerStatus.REJECTED : input.action === 'REQUEST_CHANGES' ? RetailerStatus.DRAFT : input.action === 'SUSPEND' ? RetailerStatus.SUSPENDED : input.action === 'DEACTIVATE' ? RetailerStatus.INACTIVE : RetailerStatus.APPROVED; 
         

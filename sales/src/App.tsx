@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { ProtectedRoute } from './components/common/ProtectedRoute';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
@@ -11,6 +11,9 @@ const MobileSessionPage = lazy(() => import('./pages/MobileSessionPage').then((m
 const AgentActivityPage = lazy(() => import('./pages/AgentActivityPage').then((module) => ({ default: module.AgentActivityPage })));
 const SalesVisitEntryPage = lazy(() => import('./pages/SalesVisitEntryPage').then((module) => ({ default: module.SalesVisitEntryPage })));
 const ManagerRetailersPage = lazy(() => import('./pages/ManagerRetailersPage').then((module) => ({ default: module.ManagerRetailersPage })));
+const ShopCreatePage = lazy(() => import('./pages/ShopCreatePage').then((module) => ({ default: module.ShopCreatePage })));
+const ShopEditPage = lazy(() => import('./pages/ShopEditPage').then((module) => ({ default: module.ShopEditPage })));
+const ShopViewPage = lazy(() => import('./pages/ShopViewPage').then((module) => ({ default: module.ShopViewPage })));
 const AgentDashboardPage = lazy(() => import('./pages/AgentDashboardPage').then((module) => ({ default: module.AgentDashboardPage })));
 const AgentNewOrderPage = lazy(() => import('./pages/AgentNewOrderPage').then((module) => ({ default: module.AgentNewOrderPage })));
 const AgentShopsPage = lazy(() => import('./pages/AgentShopsPage').then((module) => ({ default: module.AgentShopsPage })));
@@ -30,6 +33,12 @@ const agentRoute = (page: React.ReactNode, loginPath = '/sales/login') => (
   <ProtectedRoute allowedRole="agent" loginPath={loginPath}>{page}</ProtectedRoute>
 );
 
+const ShopIdRoute = ({ page }: { page: React.ReactNode }) => {
+  const { shopid } = useParams();
+  if (!shopid || !/^\d{10}$/.test(shopid)) return <Navigate to="/sales/shops" replace />;
+  return page;
+};
+
 export default function App() {
   return (
     <AuthProvider>
@@ -46,6 +55,10 @@ export default function App() {
                 <Route path="/sales/dashboard" element={agentRoute(<AgentDashboardPage />)} />
                 <Route path="/sales/new-order" element={agentRoute(<AgentNewOrderPage />)} />
                 <Route path="/sales/shops" element={agentRoute(<AgentShopsPage />)} />
+                {/* Shop / Retailer Registration */}
+                <Route path="/sales/shops/new" element={agentRoute(<ShopCreatePage />)} />
+                <Route path="/sales/shops/edit/:shopid" element={agentRoute(<ShopIdRoute page={<ShopEditPage />} />)} />
+                <Route path="/sales/shops/view/:shopid" element={agentRoute(<ShopIdRoute page={<ShopViewPage />} />)} />
                 <Route path="/sales/retailers/add" element={agentRoute(<ManagerRetailersPage view="add" portal="agent" />)} />
                 <Route path="/sales/profile" element={agentRoute(<AgentProfilePage />)} />
                 <Route path="/sales/activity" element={agentRoute(<AgentActivityPage />)} />

@@ -808,6 +808,19 @@ const Summary = ({ retailer, close }: { retailer?: Row; close: () => void }) =>
             </div>
           ))}
         </dl>
+        {Array.isArray(retailer.images) && retailer.images.length > 0 && (
+          <section className="mt-8">
+            <h3 className="text-sm font-black uppercase tracking-wide text-slate-500">Shop images</h3>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              {retailer.images.map((image: Row) => (
+                <div key={image.id} className="overflow-hidden rounded-xl border border-slate-200">
+                  <img src={image.url} alt={`${retailer.name} ${image.type}`} className="h-36 w-full object-cover" />
+                  <p className="px-3 py-2 text-xs font-semibold text-slate-500">Image ID: {image.id}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </aside>
     </div>
   );
