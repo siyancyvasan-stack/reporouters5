@@ -18,6 +18,7 @@ import {
   supportsBiometricLogin,
 } from "../services/authApi";
 import { uploadCheckoutGpsBestEffort } from "../services/gpsCheckout";
+import { enqueueFieldOperation } from "../services/fieldOperationQueue";
 import { PunchInAuthModal } from "../components/attendance/PunchInAuthModal";
 import {
   Navigation,
@@ -349,10 +350,22 @@ export const AgentDashboardPage: React.FC = () => {
           setBiometricState("IDLE");
         }, 1500);
       } else {
-        await apiRequest("/api/v1/attendance/check-in", {
-          method: "POST",
-          body: JSON.stringify(gps),
-        });
+        try {
+          await apiRequest("/api/v1/attendance/check-in", {
+            method: "POST",
+            body: JSON.stringify(gps),
+          });
+        } catch (error) {
+          if (navigator.onLine) throw error;
+          await enqueueFieldOperation({
+            agentId: user.id,
+            kind: "ATTENDANCE",
+            url: "/api/v1/attendance/check-in",
+            method: "POST",
+            body: gps,
+          });
+          showToast("Offline punch-in saved", "Route tracking will sync when the connection returns.", "info");
+        }
         await enqueueGpsPoint(point);
         setIsCheckedIn(true);
         setBiometricState("SHIFT_STARTED");
